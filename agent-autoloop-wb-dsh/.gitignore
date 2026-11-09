@@ -1,0 +1,22 @@
+# 依赖
+node_modules/
+
+# 运行时产物（各命令在自己的 HOME 目录下生成，这里保险起见也排除本地调试残留）
+*.db
+*.db-shm
+*.db-wal
+up.pid
+up.log
+master.key
+
+# 测试产生的临时 HOME
+tests/home/
+
+# 本机沙箱/调试诊断产物
+.acl-recovery/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

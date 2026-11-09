@@ -1,0 +1,56 @@
+# ---- 密钥与凭据：绝对不能进仓库 ----
+secrets/
+*.key
+*.pem
+*.p12
+id_rsa*
+.env
+.env.*
+!.env.example
+console/.session
+console/.passcode
+console/.dshweb.log
+console/.tunnel.log
+console/.cloudflared.log
+console/.netstat.log
+tools/mobile-url.txt
+tools/cloudflare.json
+
+# ---- 运行时数据：每个人本地自己生成，不该共享 ----
+# 注意：必须带前导斜杠。写成 `workflow/` 会忽略**任意层级**的同名目录，
+# 把 console/workflow/ 一起吞掉（那是控制台的核心模块，吞了 clone 下来就跑不起来）。
+/workbench/
+/workflow/
+state.json
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-*
+up.pid
+master.key
+
+# ---- 依赖与构建产物 ----
+node_modules/
+tools/bin/
+
+# ---- 日志与临时文件 ----
+*.log
+*.bak
+*.bak-*
+*.tmp
+
+# ---- 个人研究资料（本机专用）----
+.research/
+
+# ---- 第三方设计规范的下载物（属于上游，不要提交）----
+# tools/fetch-design-skills.mjs 会把它们下载到这里；只保留说明文件。
+/docs/design-skills/*.md
+!/docs/design-skills/README.md
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

@@ -1,0 +1,7 @@
+{
+  "name": "早报",
+  "when": { "cron": "0 8 * * *" },
+  "to": "wb",
+  "cwd": "C:\\Users\\you\\notes",
+  "prompt": "整理昨天到今天本目录的笔记和 git 提交，写今天的早报，存到 briefs/今天日期.md。"
+}

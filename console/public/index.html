@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="工作台">
+<meta name="mobile-web-app-capable" content="yes">
+<title>工作台 · Agent 中台</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/style.css">
+<script>
+  // 本地工具不需要 service worker。旧版本曾缓存前端资源，导致"改了代码页面还是旧的"。
+  // 这里主动注销所有 SW 并清缓存，然后只重载一次（sessionStorage 防循环）。
+  (async () => {
+    try {
+      if (!("serviceWorker" in navigator)) return;
+      const regs = await navigator.serviceWorker.getRegistrations();
+      if (!regs.length) return;
+      await Promise.all(regs.map((r) => r.unregister()));
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      if (!sessionStorage.getItem("wb.sw.cleared")) {
+        sessionStorage.setItem("wb.sw.cleared", "1");
+        location.reload();
+      }
+    } catch {}
+  })();
+</script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo"></span>
+    <span class="name">工作台</span>
+    <span class="sub">agent-autoloop</span>
+  </div>
+  <nav class="tabs">
+    <button class="tab on" type="button" data-view="observe">观察</button>
+    <button class="tab" type="button" data-view="workflow">编排</button>
+  </nav>
+  <div class="stats" id="stats"></div>
+  <div class="conn" id="conn" data-state="wait">连接中</div>
+</header>
+
+<main class="grid" id="grid">
+  <aside class="rail">
+    <section class="panel">
+      <h2>等你拍板 <span class="count" id="inboxCount">0</span></h2>
+      <div class="inbox" id="inbox"></div>
+    </section>
+    <section class="panel presence-panel">
+      <h2>在场</h2>
+      <div class="presence" id="presence"></div>
+    </section>
+    <section class="panel">
+      <h2>文件桥 <span class="count" id="bridgeCount">0</span></h2>
+      <div class="bridge" id="bridge"></div>
+    </section>
+  </aside>
+
+  <section class="lanes" id="lanes"></section>
+
+  <section class="panel stream" id="streamPanel">
+    <h2>事实时间线 <span class="count" id="seqBadge">#0</span></h2>
+    <ol class="facts" id="facts"></ol>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer" hidden>
+  <div class="drawer-head">
+    <h2 id="drawerTitle">—</h2>
+    <button id="drawerClose" type="button">关闭</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<div class="toast" id="toast" hidden></div>
+
+<section class="wf" id="wf" hidden>
+  <aside class="wf-palette">
+    <button class="wf-fold" id="wfFoldBase" type="button" aria-expanded="true">
+      <span class="wf-fold-arrow">▾</span>模块
+    </button>
+    <div id="wfBaseSection">
+      <div class="wf-hint">拖到右边画布上</div>
+      <div id="wfBase"></div>
+    </div>
+
+    <button class="wf-fold" id="wfFoldEmp" type="button" aria-expanded="true">
+      <span class="wf-fold-arrow">▾</span>员工
+    </button>
+    <div id="wfEmpSection">
+      <div id="wfEmployees"></div>
+      <button class="wf-hire" id="wfHire" type="button">＋ 招一个 Agent</button>
+    </div>
+  </aside>
+
+  <div class="wf-projectbar">
+    <div class="wf-projects" id="wfProjects"></div>
+    <button class="wf-mini" id="wfNewProject" type="button">＋ 新建项目</button>
+    <input id="wfName" class="wf-name" placeholder="项目名" maxlength="60" />
+    <span class="wf-status" id="wfStatus"></span>
+  </div>
+
+  <section class="wf-canvas" id="wfCanvas">
+    <div class="wf-toolbar">
+      <button id="wfSave" type="button">保存</button>
+      <button id="wfRun" type="button" class="primary">▶ 运行</button>
+      <button id="wfStop" type="button" class="danger" hidden>■ 停止</button>
+      <button id="wfChatOpen" type="button" class="chat-entry" title="先点一个员工节点，再点这里">💬 对话</button>
+      <button id="wfDeleteProject" type="button" class="danger">删除项目</button>
+      <span class="wf-build" id="wfBuild">b-chat-2</span>
+    </div>
+    <svg class="wf-edges" id="wfEdges"></svg>
+    <div class="wf-nodes" id="wfNodes"></div>
+    <div class="wf-empty" id="wfEmpty">
+      <div>
+        <b>从左边拖一个模块进来</b>
+        <ol>
+          <li>1. 拖「输入」到画布，写清楚要做什么</li>
+          <li>2. 拖一个员工进来，从输入节点右边的圆点拖到它</li>
+          <li>3. 点「▶ 运行」</li>
+        </ol>
+      </div>
+    </div>
+    <div class="wf-drop" id="wfDrop" hidden>松手放到这里</div>
+  </section>
+
+  <aside class="wf-side">
+    <section class="panel wf-brief">
+      <h2>工作状态 <span class="count" id="wfBriefState">全员共享</span></h2>
+      <p class="wf-note">这里写的每句话，都会出现在<b>每个员工</b>的任务说明最前面。写项目目标、当前进展、已定的约定。</p>
+      <textarea id="wfBrief" rows="5" maxlength="4000" placeholder="例：目标是把 X 做成 Y。当前进展：。约定：改动只动 src/，别碰 lock 文件。"></textarea>
+      <div class="wf-files">
+        <div class="wf-files-head">
+          <span>项目资料</span>
+          <button class="wf-mini" id="wfFilePick" type="button">＋ 上传</button>
+          <input id="wfFileInput" type="file" hidden multiple />
+        </div>
+        <p class="wf-note">传上来的文件，员工会拿到它的路径，需要就自己去读。</p>
+        <div id="wfFileList" class="wf-file-list"></div>
+      </div>
+    </section>
+    <section class="panel wf-run">
+      <h2>运行 <span class="count" id="wfRunState">—</span></h2>
+      <div id="wfRunNodes" class="wf-run-nodes"></div>
+      <pre class="out-text" id="wfNodeOut"></pre>
+    </section>
+    <section class="panel wf-todo">
+      <h2>待办 <span class="count" id="wfTodoCount">0</span></h2>
+      <div id="wfTodo" class="inbox"></div>
+    </section>
+  </aside>
+
+  <div class="wf-props" id="wfProps" hidden>
+    <div class="wf-props-head">
+      <strong id="wfPropTitle">属性</strong>
+      <button id="wfPropClose" type="button">×</button>
+    </div>
+
+    <div id="wfNodeFields">
+      <div class="wf-props-actions" id="wfPropChatWrap" hidden>
+        <button id="wfPropChat" type="button" class="primary">进入对话</button>
+      </div>
+      <label class="wf-field">
+        <span id="wfPropTextLabel">提示词 / 任务说明</span>
+        <textarea id="wfPropText" rows="6" maxlength="4000"></textarea>
+      </label>
+      <label class="wf-field" id="wfPropEmpWrap">
+        <span>由谁执行</span>
+        <select id="wfPropEmp"></select>
+      </label>
+      <div class="wf-field" id="wfPropOutWrap">
+        <span class="wf-out-head">
+          <span>产物</span>
+          <button id="wfPropOutRefresh" type="button" class="wf-mini">刷新</button>
+          <em id="wfPropOutMeta"></em>
+        </span>
+        <pre class="wf-out" id="wfPropOut">还没有运行记录</pre>
+      </div>
+      <div class="wf-props-actions">
+        <button id="wfPropDelete" type="button" class="danger">删除这个节点</button>
+      </div>
+    </div>
+
+    <div id="wfEmpFields" hidden>
+      <div class="wf-section-head" id="wfEmpTitle">员工设定</div>
+      <p class="wf-note" id="wfEmpScope"></p>
+      <label class="wf-field">
+        <span>名字</span>
+        <input id="wfEmpName" type="text" maxlength="40" />
+      </label>
+      <label class="wf-field">
+        <span>角色</span>
+        <select id="wfEmpRole"></select>
+        <em class="wf-note" id="wfEmpRoleNote"></em>
+      </label>
+      <label class="wf-field">
+        <span>后端（谁来执行）</span>
+        <select id="wfEmpBackend"></select>
+        <em class="wf-note" id="wfEmpBackendNote"></em>
+      </label>
+      <label class="wf-field">
+        <span>这个后端的模型</span>
+        <input id="wfEmpModel" type="text" maxlength="80" placeholder="留空 = 用该后端的默认模型" />
+        <em class="wf-note" id="wfEmpModelNote"></em>
+        <em class="wf-note" id="wfEmpKeyNote"></em>
+      </label>
+      <label class="wf-field">
+        <span>角色设定（每次派活都会带上）</span>
+        <textarea id="wfEmpPersona" rows="3" maxlength="2000"></textarea>
+      </label>
+      <label class="wf-field">
+        <span>默认任务（拖进画布时自动预填）</span>
+        <textarea id="wfEmpTask" rows="3" maxlength="4000"></textarea>
+      </label>
+      <div class="wf-props-actions">
+        <button id="wfEmpSave" type="button">保存员工</button>
+        <button id="wfEmpDelete" type="button" class="danger">开除</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="wf-chat" id="wfChat" hidden>
+  <div class="wf-chat-box">
+    <header class="wf-chat-head">
+      <strong id="wfChatTitle">对话</strong>
+      <span class="wf-chat-meta" id="wfChatMeta"></span>
+      <button class="wf-mini" id="wfChatClose" type="button">返回画布</button>
+    </header>
+    <div class="wf-chat-body" id="wfChatBody"></div>
+    <form class="wf-chat-form" id="wfChatForm">
+      <textarea id="wfChatInput" rows="2" maxlength="4000" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button id="wfChatSend" type="submit" class="primary">发送</button>
+    </form>
+  </div>
+</section>
+
+<script src="/app.js"></script>
+<script src="/chat.js"></script>
+<script src="/workflow.js"></script>
+</body>
+</html>

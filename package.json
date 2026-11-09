@@ -1,0 +1,43 @@
+{
+  "name": "agent-visual-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "把命令行 Agent 变成一张可编排、可观察的图：中台 + 画布 + 对话",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LucasSun101/-agent-visual-workbench.git"
+  },
+  "keywords": [
+    "agent",
+    "orchestration",
+    "workflow",
+    "canvas",
+    "deepseek",
+    "workbuddy",
+    "sse",
+    "windows"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "up": "node --disable-warning=ExperimentalWarning --experimental-sqlite agent-autoloop-wb-dsh/bin/agent-autoloop.ts up",
+    "init": "node --disable-warning=ExperimentalWarning --experimental-sqlite agent-autoloop-wb-dsh/bin/agent-autoloop.ts init",
+    "check": "node --disable-warning=ExperimentalWarning --experimental-sqlite agent-autoloop-wb-dsh/bin/agent-autoloop.ts check",
+    "console": "node console/server.mjs",
+    "test": "npm run check:syntax && npm run check:ps1 && npm run check:privacy && npm run test:privacy && npm run test:unit",
+    "test:unit": "node tools/test-brief.mjs && node tools/test-directives.mjs && node tools/check-css.mjs",
+    "test:live": "node tools/verify-console.mjs",
+    "test:privacy": "node tools/selftest-privacy.mjs",
+    "check:syntax": "node tools/check-syntax.mjs",
+    "check:ps1": "node tools/check-ps1-all.mjs",
+    "check:privacy": "node tools/check-privacy.mjs",
+    "setup": "node tools/setup.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
